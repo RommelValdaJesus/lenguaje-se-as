@@ -1,0 +1,6 @@
+opencv-contrib-python==4.10.0.84 # captura el frame de la camara
+mediapipe==0.10.14               # detecta la mano
+numpy==1.26.4                    # organiza las coordenadas de los 21 puntos de la mano
+scikit-learn==1.5.2              # analiza los datos de la mano y predice el gesto "A-Z"
+joblib==1.4.2                    # guarda y carga el modelo entrenado
+Pillow==10.4.0                   # manipula las imagenes
