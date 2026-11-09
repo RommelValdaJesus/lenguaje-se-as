@@ -11,13 +11,13 @@ RUTA_DATOS = os.path.join(CARPETA_DATOS, "muestras.csv")
 RUTA_MODELO = os.path.join(CARPETA_DATOS, "modelo.joblib")
 
 NUM_PUNTOS = 21
-FEATURES_POR_FRAME = NUM_PUNTOS * 3  # 63
+FEATURES_POR_FRAME = NUM_PUNTOS * 3 
 
 VENTANA_TEMPORAL = 30  # frames por muestra (~1s a 30fps)
 
 # Features temporales por ventana:
-#   media (63) + desplazamiento (63) + varianza (63) + velocidad (63) + recorrido (21)
-NUM_CARACTERISTICAS = FEATURES_POR_FRAME * 4 + NUM_PUNTOS  # 273
+
+NUM_CARACTERISTICAS = FEATURES_POR_FRAME * 4 + NUM_PUNTOS  
 
 
 def abrir_camara(indice=0, ancho=1280, alto=720):
@@ -46,7 +46,7 @@ def normalizar_landmarks(hand_landmarks, lado_mano, ancho, alto):
     if escala < 1e-6:
         return None
     pts /= escala
-    return pts.flatten()  # (63,)
+    return pts.flatten()  
 
 
 def features_ventana(ventana):
@@ -56,14 +56,14 @@ def features_ventana(ventana):
     if n < 2:
         return None
 
-    media = v.mean(axis=0)                       # 63
-    desplazamiento = v[-1] - v[0]                # 63
-    varianza = v.var(axis=0)                     # 63
-    velocidad = np.abs(np.diff(v, axis=0)).mean(axis=0)  # 63
+    media = v.mean(axis=0)                       
+    desplazamiento = v[-1] - v[0]                
+    varianza = v.var(axis=0)                     
+    velocidad = np.abs(np.diff(v, axis=0)).mean(axis=0)  
 
     # recorrido por punto (21)
-    tray = np.diff(v.reshape(n, NUM_PUNTOS, 3), axis=0)  # (n-1, 21, 3)
-    recorrido = np.linalg.norm(tray, axis=2).sum(axis=0)  # (21,)
+    tray = np.diff(v.reshape(n, NUM_PUNTOS, 3), axis=0)  
+    recorrido = np.linalg.norm(tray, axis=2).sum(axis=0)  
 
     return np.concatenate([media, desplazamiento, varianza, velocidad, recorrido])
 
