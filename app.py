@@ -1,4 +1,3 @@
-"""Aplicación de escritorio: detecta señas (estáticas y dinámicas) y arma texto."""
 import os
 import tkinter as tk
 from collections import Counter, deque
@@ -18,30 +17,39 @@ from utils import (
     normalizar_landmarks,
 )
 
-UMBRAL_CONFIANZA = 0.60   # un poco más bajo porque la ventana ya suaviza
-VENTANA_SUAVIZADO = 3     # votos entre predicciones consecutivas
-PREDICCIONES_ESTABLES = 3 # ventanas seguidas con la misma seña para escribir
+UMBRAL_CONFIANZA = 0.60   
+VENTANA_SUAVIZADO = 3     
+PREDICCIONES_ESTABLES = 3 
 ANCHO_VIDEO = 640
 
 
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("Detector de Lengua de Señas")
+        self.root.title("Traductor de Lengua de Señas a Texto - TECBA")
         self.root.configure(bg="#1e1e1e")
+        self.root.geometry("900x500") 
 
+        # Verificar modelo
         if not os.path.exists(RUTA_MODELO):
-            messagebox.showerror("Sin modelo", "No existe datos/modelo.joblib.\nEjecuta recolectar.py y Entrenar.py primero.")
+            messagebox.showerror("Sin modelo", "No existe datos/modelo.joblib.\nEjecuta recolectar.py y entrenar.py primero.")
             self.root.destroy()
             return
 
-        datos = joblib.load(RUTA_MODELO)
-        self.modelo = datos["modelo"]
-        self.modelo.n_jobs = 1
+        # Cargar modelo
+        try:
+            datos = joblib.load(RUTA_MODELO)
+            self.modelo = datos["modelo"]
+            self.modelo.n_jobs = 1
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo cargar el modelo: {e}")
+            self.root.destroy()
+            return
 
+        # Abrir cámara
         self.cap = abrir_camara()
         if not self.cap.isOpened():
-            messagebox.showerror("Cámara", "No se pudo abrir la cámara.")
+            messagebox.showerror("Cámara", "No se pudo abrir la cámara. Verifica que no esté en uso.")
             self.root.destroy()
             return
 
@@ -57,11 +65,14 @@ class App:
 
         self._construir_ui()
         self.root.protocol("WM_DELETE_WINDOW", self.cerrar)
+        
+        # Atajos de teclado
         self.root.bind("<space>", lambda e: self.agregar(" "))
         self.root.bind("<BackSpace>", lambda e: self.borrar())
+        
         self.actualizar()
 
-    # ---------- UI ----------
+    # ---------- INTERFAZ GRÁFICA ----------
     def _construir_ui(self):
         estilo = ttk.Style()
         estilo.theme_use("clam")
@@ -69,9 +80,11 @@ class App:
         cont = tk.Frame(self.root, bg="#1e1e1e")
         cont.pack(padx=10, pady=10)
 
+        # Panel Izquierdo: Video
         self.lbl_video = tk.Label(cont, bg="black")
         self.lbl_video.grid(row=0, column=0, rowspan=7, padx=(0, 10))
 
+        # Panel Derecho: Predicción y Confianza
         tk.Label(cont, text="Seña detectada", fg="#aaa", bg="#1e1e1e", font=("Segoe UI", 11)).grid(row=0, column=1, sticky="n")
         self.lbl_pred = tk.Label(cont, text="-", fg="#4ade80", bg="#1e1e1e", font=("Segoe UI", 72, "bold"), width=3)
         self.lbl_pred.grid(row=1, column=1)
@@ -85,20 +98,23 @@ class App:
         self.progreso = ttk.Progressbar(cont, length=200, maximum=PREDICCIONES_ESTABLES)
         self.progreso.grid(row=4, column=1, pady=5)
 
+        # Botones de Control
         botones = tk.Frame(cont, bg="#1e1e1e")
         botones.grid(row=5, column=1, pady=10)
+        
         ttk.Button(botones, text="Espacio", command=lambda: self.agregar(" ")).pack(fill="x", pady=2)
         ttk.Button(botones, text="Borrar", command=self.borrar).pack(fill="x", pady=2)
         ttk.Button(botones, text="Limpiar", command=self.limpiar).pack(fill="x", pady=2)
 
+        # Cuadro de texto final
         self.txt = tk.Text(self.root, height=3, font=("Segoe UI", 16), wrap="word", bg="#2a2a2a", fg="white", insertbackground="white")
         self.txt.pack(fill="x", padx=10, pady=(0, 10))
 
-    # ---------- Lógica ----------
+    # ---------- LÓGICA DE VISIÓN Y PREDICCIÓN ----------
     def actualizar(self):
         ok, frame = self.cap.read()
         if ok:
-            frame = cv2.flip(frame, 1)
+            frame = cv2.flip(frame, 1) # Espejo
             alto, ancho = frame.shape[:2]
             lm, lado = self.detector.procesar(frame)
 
@@ -113,21 +129,27 @@ class App:
             else:
                 self.buffer.clear()
 
+            # Predicción cuando el buffer está lleno
             if len(self.buffer) == VENTANA_TEMPORAL:
                 feats = features_ventana(np.array(self.buffer))
                 if feats is not None:
-                    proba = self.modelo.predict_proba(feats.reshape(1, -1))[0]
-                    i = int(np.argmax(proba))
-                    conf = float(proba[i])
-                    if conf >= UMBRAL_CONFIANZA:
-                        pred = self.modelo.classes_[i]
-                    # ventana deslizante: soltamos el frame más viejo para predecir de nuevo
+                    try:
+                        proba = self.modelo.predict_proba(feats.reshape(1, -1))[0]
+                        i = int(np.argmax(proba))
+                        conf = float(proba[i])
+                        if conf >= UMBRAL_CONFIANZA:
+                            pred = self.modelo.classes_[i]
+                    except Exception:
+                        pass 
+                    
+                    # Ventana deslizante
                     self.buffer.popleft()
 
             self.historial.append(pred)
             estable = self._suavizar()
             self._procesar_estabilidad(estable)
 
+            # Actualizar UI
             self.lbl_pred.config(text=estable or "-")
             self.lbl_conf.config(text=f"Confianza: {conf * 100:.0f}%")
             self.lbl_buf.config(text=f"Buffer: {len(self.buffer)}/{VENTANA_TEMPORAL}")
@@ -137,6 +159,7 @@ class App:
         self.job = self.root.after(15, self.actualizar)
 
     def _suavizar(self):
+        
         validos = [p for p in self.historial if p is not None]
         if not validos:
             return None
@@ -144,6 +167,7 @@ class App:
         return seña if votos > len(self.historial) // 2 else None
 
     def _procesar_estabilidad(self, seña):
+        
         if seña is None:
             self.ultima, self.contador, self.bloqueada = None, 0, False
             return
@@ -152,10 +176,11 @@ class App:
             return
         if self.bloqueada:
             return
+        
         self.contador += 1
         if self.contador >= PREDICCIONES_ESTABLES:
             self.agregar(seña)
-            self.bloqueada = True  # bajar la mano para repetir
+            self.bloqueada = True # Bajar la mano para volver a escribir
 
     def _mostrar(self, frame):
         alto, ancho = frame.shape[:2]
@@ -165,6 +190,7 @@ class App:
         self._imgtk = ImageTk.PhotoImage(image=img)
         self.lbl_video.config(image=self._imgtk)
 
+    # ---------- CONTROL DE TEXTO ----------
     def agregar(self, c):
         self.texto += c
         self._refrescar_texto()
