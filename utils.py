@@ -1,4 +1,3 @@
-"""Utilidades compartidas: cámara, detector de manos, normalización y features temporales."""
 import os
 import platform
 from collections import deque
@@ -22,7 +21,7 @@ NUM_CARACTERISTICAS = FEATURES_POR_FRAME * 4 + NUM_PUNTOS  # 273
 
 
 def abrir_camara(indice=0, ancho=1280, alto=720):
-    """Abre la cámara. En Windows usa DirectShow porque arranca mucho más rápido."""
+    
     if platform.system() == "Windows":
         cap = cv2.VideoCapture(indice, cv2.CAP_DSHOW)
     else:
@@ -33,12 +32,7 @@ def abrir_camara(indice=0, ancho=1280, alto=720):
 
 
 def normalizar_landmarks(hand_landmarks, lado_mano, ancho, alto):
-    """
-    Convierte 21 puntos en un vector 63 invariante a:
-      - posición en pantalla (relativo a la muñeca)
-      - distancia a la cámara (escala por tamaño de mano)
-      - mano usada (izquierda se refleja)
-    """
+    
     pts = np.array(
         [[lm.x * ancho, lm.y * alto, lm.z * ancho] for lm in hand_landmarks.landmark],
         dtype=np.float32,
@@ -56,10 +50,7 @@ def normalizar_landmarks(hand_landmarks, lado_mano, ancho, alto):
 
 
 def features_ventana(ventana):
-    """
-    ventana: array (N, 63) de frames normalizados.
-    Devuelve vector de 273 features que resume el movimiento.
-    """
+   
     v = np.asarray(ventana, dtype=np.float32)
     n = len(v)
     if n < 2:
@@ -78,7 +69,7 @@ def features_ventana(ventana):
 
 
 class DetectorManos:
-    """Envoltorio de MediaPipe Hands."""
+    
 
     def __init__(self, max_manos=1, complejidad=1, conf_deteccion=0.7, conf_seguimiento=0.5):
         self.mp_hands = mp.solutions.hands
@@ -93,7 +84,7 @@ class DetectorManos:
         )
 
     def procesar(self, frame_bgr):
-        """Devuelve (landmarks, 'Left'/'Right') de la primera mano, o (None, None)."""
+        
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         rgb.flags.writeable = False
         res = self.hands.process(rgb)
